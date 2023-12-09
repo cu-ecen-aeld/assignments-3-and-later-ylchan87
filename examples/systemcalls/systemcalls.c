@@ -1,4 +1,12 @@
 #include "systemcalls.h"
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <string.h>
 
 /**
  * @param cmd the command to execute with system()
@@ -16,8 +24,8 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
-
-    return true;
+    int ret = system(cmd);
+    return ret==0;
 }
 
 /**
@@ -40,15 +48,18 @@ bool do_exec(int count, ...)
     va_start(args, count);
     char * command[count+1];
     int i;
+    printf("do_exec start cmd count: %d\n", count);
     for(i=0; i<count; i++)
     {
         command[i] = va_arg(args, char *);
+        printf("get cmd : %s\n", command[i]);
     }
+    printf("do_exec cmd listing done\n");
+    fflush(stdout);
     command[count] = NULL;
-    // this line is to avoid a compile warning before your implementation is complete
-    // and may be removed
-    command[count] = command[count];
 
+    va_end(args);
+    
 /*
  * TODO:
  *   Execute a system command by calling fork, execv(),
@@ -58,9 +69,77 @@ bool do_exec(int count, ...)
  *   as second argument to the execv() command.
  *
 */
+    pid_t pid;
+    // int wstatus;
 
-    va_end(args);
+    pid = fork();
+    if (pid < 0){
+        printf("Fork failed with %s\n", strerror(errno));
+        fflush(stdout); 
+        return false;
+    }
 
+    if (pid==0){
+        for(i=0; i<count; i++){
+            printf("cmd: %s\n", command[i]);
+        }
+        fflush(stdout); 
+        int ret = execv( command[0], command ); // the argv should still keep the 1st arg i.e. command[0]
+        if (ret == -1){
+            perror("child execv failed");
+            exit(1); // if return normally the testsuit would be run trice due to the fork
+            return false;
+        }
+    }
+    else{
+        int status;
+        if ( waitpid(pid, &status, 0) == -1 ) {
+            perror("waitpid() failed");
+            return false;
+        }
+
+        // if ( wait(&status) == -1 ) {
+        //     perror("wait() failed");
+        //     return false;
+        // }
+
+        int returned = 0;
+        int signum   = 0;
+
+        if ( WIFEXITED(status) ) {
+            returned = WEXITSTATUS(status);
+            printf("at do_exec, Exited normally with retCode %d\n", returned);
+        }
+        else if ( WIFSIGNALED(status) ) {
+            signum = WTERMSIG(status);
+            printf("Exited due to receiving signal %d\n", signum);
+        }
+        else if ( WIFSTOPPED(status) ) {
+            signum = WSTOPSIG(status);
+            printf("Stopped due to receiving signal %d\n", signum);
+        }
+        else {
+            printf("Something strange just happened.\n");
+        }
+
+        printf("DBG cmd count: %d\n", count);
+        for(i=0; i<count; i++)
+        {
+            printf("DBG cmd : %s\n", command[i]);
+        }
+        printf("DBG cmd listing done\n");
+
+        
+        printf("status %d\n", status);
+        printf("Parent receive child %d exit status was %d OR signum %d \n", pid, returned, signum);
+        fflush(stdout); 
+        return returned == 0;
+        
+    }
+
+    
+    printf("pid %d at do_exec_end\n", pid);
+    fflush(stdout); 
     return true;
 }
 
@@ -80,9 +159,8 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
         command[i] = va_arg(args, char *);
     }
     command[count] = NULL;
-    // this line is to avoid a compile warning before your implementation is complete
-    // and may be removed
-    command[count] = command[count];
+
+    va_end(args);
 
 
 /*
@@ -92,8 +170,75 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *
 */
+    pid_t pid;
+    
 
-    va_end(args);
+    int fd = open(outputfile, O_WRONLY|O_TRUNC|O_CREAT, 0644);
+    if (fd < 0) { perror("open"); abort(); }
 
+    pid = fork();
+    if (pid < 0){
+        printf("Fork failed with %s\n", strerror(errno));
+        fflush(stdout); 
+        return false;
+    }
+
+    if (pid==0){
+        for(i=0; i<count; i++){
+            printf("cmd: %s\n", command[i]);
+        }
+        fflush(stdout); 
+
+        if (dup2(fd, 1) < 0) { perror("dup2"); abort(); }
+        close(fd);
+
+        int ret = execv( command[0], command);
+        if (ret == -1){
+            perror("child execv failed");
+            return false;
+        }
+        
+    }
+    else{
+        close(fd);
+
+        int status;
+        if ( waitpid(pid, &status, 0) == -1 ) {
+            perror("waitpid() failed");
+            return false;
+        }
+
+        int returned = 0;
+        int signum   = 0;
+
+        if ( WIFEXITED(status) ) {
+            returned = WEXITSTATUS(status);
+            printf("at do_exec_redirect, Exited normally with retCode %d\n", returned);
+        }
+        else if ( WIFSIGNALED(status) ) {
+            signum = WTERMSIG(status);
+            printf("Exited due to receiving signal %d\n", signum);
+        }
+        else if ( WIFSTOPPED(status) ) {
+            signum = WSTOPSIG(status);
+            printf("Stopped due to receiving signal %d\n", signum);
+        }
+        else {
+            printf("Something strange just happened.\n");
+        }
+
+        
+        printf("status %d\n", status);
+        printf("Parent receive child %d exit status was %d OR signum %d \n", pid, returned, signum);
+        fflush(stdout); 
+        return returned == 0;
+        
+    }
+
+
+    printf("pid %d at do_exec_redirect end\n", pid);
+    fflush(stdout); 
     return true;
+
+    
 }

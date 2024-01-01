@@ -49,7 +49,8 @@ int main( int argc, char *argv[] )  {
         struct addrinfo *filled_addrinfo;  // will point to the results
 
         memset(&hints, 0, sizeof hints); // make sure the struct is empty
-        hints.ai_flags = AI_PASSIVE;
+        hints.ai_flags  = AI_PASSIVE;
+        hints.ai_family = AF_INET;
 
         ret_code = getaddrinfo(NULL, "9000", &hints, &filled_addrinfo);
         if (ret_code != 0) {

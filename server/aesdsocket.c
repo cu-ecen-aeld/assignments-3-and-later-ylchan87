@@ -35,6 +35,14 @@ int main( int argc, char *argv[] )  {
 
     int socket_fd = socket(PF_INET, SOCK_STREAM, 0);
 
+    // so that can reuse the same port after restarting the prog
+    // ref: https://hea-www.harvard.edu/~fine/Tech/addrinuse.html
+    const int enable = 1;
+    if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0){
+        fprintf(stderr,"setsockopt(SO_REUSEADDR) failed\n");
+        exit(1);
+    }
+
     // bind the socket
     {
         struct addrinfo hints;

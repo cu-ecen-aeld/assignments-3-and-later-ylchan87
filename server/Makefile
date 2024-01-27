@@ -14,7 +14,7 @@ all: aesdsocket
 
 # This rule tells make how to build hello from hello.cpp
 aesdsocket: aesdsocket.c
-	$(CC) -std=gnu11 -o aesdsocket aesdsocket.c
+	$(CC) -std=gnu11 -g -o aesdsocket -pthread aesdsocket.c
 
 # This rule tells make to delete hello and hello.o
 .PHONY: clean 
